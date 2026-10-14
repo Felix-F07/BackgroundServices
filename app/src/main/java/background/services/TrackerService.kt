@@ -28,8 +28,8 @@ private val NOTIFICATION_ID_JUMP_DETECTED = 2
 
 class TrackerService : Service(), SensorEventListener {
 
-    override fun onBind(p0: Intent): IBinder {
-        TODO("Not yet implemented")
+    override fun onBind(p0: Intent?): IBinder? {
+        return null
     }
 
     override fun onAccuracyChanged(p0: Sensor?, p1: Int) {
