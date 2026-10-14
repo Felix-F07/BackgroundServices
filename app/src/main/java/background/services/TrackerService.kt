@@ -33,7 +33,6 @@ class TrackerService : Service(), SensorEventListener {
     }
 
     override fun onAccuracyChanged(p0: Sensor?, p1: Int) {
-        TODO("Not yet implemented")
     }
 
     override fun onSensorChanged(event: SensorEvent?){
