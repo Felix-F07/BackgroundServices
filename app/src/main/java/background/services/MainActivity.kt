@@ -99,6 +99,10 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
+        btnLacak = findViewById<Button>(R.id.btnLacak)
+        txtLacak = findViewById<TextView>(R.id.txtLaca)
+
+
         btnLacak.setOnClickListener {
             if (hasAllPermissions()) {
                 startTrackerService()
