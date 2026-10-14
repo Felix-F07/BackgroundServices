@@ -151,5 +151,11 @@ class TrackerService : Service(), SensorEventListener {
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        sensorManager.unregisterListener(this)
+        Log.d("TrackerService","Service onDestroy")
+    }
+
 
 }
