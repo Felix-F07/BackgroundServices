@@ -16,14 +16,14 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : AppCompatActivity() {
-    private val permissionToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU){
+    private val permissionToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         arrayOf(
             Manifest.permission.ACTIVITY_RECOGNITION,
             Manifest.permission.POST_NOTIFICATIONS,
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
 
-        )
+            )
     } else {
         arrayOf(
             Manifest.permission.ACTIVITY_RECOGNITION,
@@ -35,22 +35,40 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var txtLacak: TextView
     private lateinit var btnLacak: Button
+    private lateinit var txtLatihan: TextView
+    private lateinit var btnLatihan: Button
 
-    companion object{
+    private var workoutPermissionRequest = false
+
+    companion object {
         const val ACTION_SERVICE_STOPPED_JUMP = "background.services.ACTION_SERVICE_STOPPED_JUMP"
+        const val ACTION_START_WORKOUT = "background.services.ACTION_START_WORKOUT"
+        const val EXTRA_JUMP_COUNT = "background.services.EXTRA_JUMP_COUNT"
         const val REQUEST_CODE_PERMISSIONS = 101
     }
 
-    private fun hasAllPermissions(): Boolean{
-        return permissionToRequest.all {
-            ContextCompat.checkSelfPermission(this,it)== PackageManager.PERMISSION_GRANTED
+    private fun hasAllPermissions(): Boolean {
+        return permissionToRequest.all { permission ->
+            ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
         }
     }
 
-    private fun startTrackerService(){
+    private fun startTrackerService() {
         val serviceIntent = Intent(this, TrackerService::class.java)
-        ContextCompat.startForegroundService(this,serviceIntent)
+        ContextCompat.startForegroundService(this, serviceIntent)
         txtLacak.text = "Background service sedang berjalan..."
+    }
+
+    private fun startWorkoutService() {
+        val serviceIntent = Intent(this, TrackerService::class.java).apply {
+            action = ACTION_START_WORKOUT
+        }
+        ContextCompat.startForegroundService(
+            this,
+            serviceIntent
+        )
+        txtLatihan.text = "Latihan sedang berjalan..."
+        btnLatihan.isEnabled = false
     }
 
     override fun onRequestPermissionsResult(
@@ -58,63 +76,89 @@ class MainActivity : AppCompatActivity() {
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_CODE_PERMISSIONS) {
-            var allPermissionsGranted = true
-            for (result in grantResults){
-                if (result != PackageManager.PERMISSION_GRANTED){
-                    allPermissionsGranted = false
-                    break
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+            if (requestCode == REQUEST_CODE_PERMISSIONS) {
+                var allPermissionsGranted = true
+                for (result in grantResults) {
+                    if (result != PackageManager.PERMISSION_GRANTED) {
+                        allPermissionsGranted = false
+                        break
+                    }
+                }
+                if (allPermissionsGranted) {
+                    if (workoutPermissionRequest) {
+                        workoutPermissionRequest = false
+                        startWorkoutService()
+                    } else {
+                        startTrackerService()
+                        finish()
+                    }
+                } else {
+                    if (workoutPermissionRequest) {
+                        txtLatihan.text = "Izin ditolak. Latihan tidak dapat dimulai."
+                    } else {
+                        txtLacak.text = "Izin ditolak, service tidak dapat dijalankan."
+                    }
+
+                    workoutPermissionRequest = false
                 }
             }
-            if (allPermissionsGranted){
-                val serviceIntent = Intent(this, TrackerService::class.java)
-                startForegroundService(serviceIntent)
-                finish()
-            } else{
-                txtLacak.text = "Izin ditolak,service tidak dapat dijalankan."
-            }
-        }
-    }
-
-    private fun handleIntent (intent: Intent?){
-        if (intent?.action  == ACTION_SERVICE_STOPPED_JUMP){
-            txtLacak.text = "Background services sudah berhenti akrena Anda melompat"
-        }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        handleIntent(intent)
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContentView(R.layout.activity_main)
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
         }
 
-        btnLacak = findViewById<Button>(R.id.btnLacak)
-        txtLacak = findViewById<TextView>(R.id.txtLaca)
-
-
-        btnLacak.setOnClickListener {
-            if (hasAllPermissions()) {
-                startTrackerService()
-            } else{
-                ActivityCompat.requestPermissions(
-                    this,
-                    permissionToRequest,
-                    REQUEST_CODE_PERMISSIONS
-                )
+        private fun handleIntent(intent: Intent?) {
+            if (intent?.action == ACTION_SERVICE_STOPPED_JUMP) {
+                txtLacak.text = "Background services sudah berhenti akrena Anda melompat"
             }
         }
 
-        handleIntent(intent)
+        override fun onNewIntent(intent: Intent) {
+            super.onNewIntent(intent)
+            setIntent(intent)
+            handleIntent(intent)
+        }
+
+        override fun onCreate(savedInstanceState: Bundle?) {
+            super.onCreate(savedInstanceState)
+            enableEdgeToEdge()
+            setContentView(R.layout.activity_main)
+            ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+                val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+                v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+                insets
+            }
+
+            btnLacak = findViewById<Button>(R.id.btnLacak)
+            txtLacak = findViewById<TextView>(R.id.txtLacak)
+
+            btnLatihan = findViewById(R.id.btnLatihan)
+            txtLatihan = findViewById(R.id.txtLatihan)
+
+
+            btnLacak.setOnClickListener {
+                if (hasAllPermissions()) {
+                    startTrackerService()
+                } else {
+                    ActivityCompat.requestPermissions(
+                        this,
+                        permissionToRequest,
+                        REQUEST_CODE_PERMISSIONS
+                    )
+                }
+            }
+
+            btnLatihan.setOnClickListener {
+                if (hasAllPermissions()) {
+                    startWorkoutService()
+                } else {
+                    workoutPermissionRequest = true
+                    ActivityCompat.requestPermissions(
+                        this,
+                        permissionToRequest,
+                        REQUEST_CODE_PERMISSIONS
+                    )
+                }
+            }
+
+            handleIntent(intent)
+        }
     }
-}
