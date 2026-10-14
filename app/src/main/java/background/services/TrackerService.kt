@@ -25,6 +25,10 @@ private val NOTIFICATION_CHANNEL_ID_SERVICE_RUNNING = "tracker_service_running"
 private val NOTIFICATION_CHANNEL_ID_JUMP_DETECTED = "tracker_jump_detected"
 private val NOTIFICATION_ID_SERVICE_RUNNING = 1
 private val NOTIFICATION_ID_JUMP_DETECTED = 2
+private var isWorkoutMode = false
+private var jumpCount = 0
+private var lastJumpDetectedAt = 0L
+private var jumpArmed = true
 
 class TrackerService : Service(), SensorEventListener {
 
@@ -35,20 +39,63 @@ class TrackerService : Service(), SensorEventListener {
     override fun onAccuracyChanged(p0: Sensor?, p1: Int) {
     }
 
-    override fun onSensorChanged(event: SensorEvent?){
-        if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
-            val y = event.values[1]
-            val jumpThreshold = 15.0
 
-            if (abs(y)>jumpThreshold) {
-                Log.d("TrackerService","LOMPATAN Terdeteksi! y: $y")
-                sensorManager.unregisterListener(this)
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event?.sensor?.type != Sensor.TYPE_ACCELEROMETER) {
+            return
+        }
 
-                showJumpNotification()
-                stopSelf()
-            }
+        val y = event.values[1].toDouble()
+        val absoluteY = abs(y)
+        val jumpThreshold = if (isWorkoutMode) 12.0 else 15.0
+
+        if (absoluteY <= jumpThreshold) {
+            jumpArmed = true
+            return
+        }
+        if (!jumpArmed) {
+            return
+        }
+
+        jumpArmed = false
+
+        if (!isWorkoutMode) {
+            Log.d(
+                "TrackerService",
+                "LOMPATAN Terdeteksi! y: $y"
+            )
+
+            sensorManager.unregisterListener(this)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            showJumpNotification()
+            stopSelf()
+            return
+        }
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastJumpDetectedAt < 800L) {
+            return
+        }
+
+        lastJumpDetectedAt = currentTime
+        jumpCount++
+
+        Log.d(
+            "TrackerService",
+            "Lompatan ke-$jumpCount terdeteksi! y: $y"
+        )
+        if (jumpCount > 2) {
+            Log.d(
+                "TrackerService",
+                "Latihan selesai. Total lompatan: $jumpCount"
+            )
+
+            sensorManager.unregisterListener(this)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            showJumpNotification()
+            stopSelf()
         }
     }
+
 
 
     private fun createNotificationChannels(){
@@ -92,6 +139,14 @@ class TrackerService : Service(), SensorEventListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent != null) {
+            isWorkoutMode =
+                intent.action == MainActivity.ACTION_START_WORKOUT
+
+            jumpCount = 0
+            lastJumpDetectedAt = 0L
+            jumpArmed = true
+        }
         Log.d("TrackerService", "Service onStartCommand")
 
         startForeground(
@@ -132,12 +187,31 @@ class TrackerService : Service(), SensorEventListener {
         )
 
         val jumpNotification = NotificationCompat.Builder(this,NOTIFICATION_CHANNEL_ID_JUMP_DETECTED)
-            .setContentTitle("Lompatan Terdeteksi")
-            .setContentText("Service Berhenti, Ketuk untuk membuka aplikasi.")
+            .setContentTitle(
+                if (isWorkoutMode) {
+                    "Latihan Selesai"
+                } else {
+                    "Lompatan Terdeteksi"
+                }
+            )
+            .setContentText(
+                if (isWorkoutMode) {
+                    "Latihan selesai setelah $jumpCount lompatan. Ketuk untuk membuka aplikasi."
+                } else {
+                    "Service berhenti. Ketuk untuk membuka aplikasi."
+                }
+            )
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setOngoing(true)
+            .setOngoing(!isWorkoutMode)
+            .setAutoCancel(isWorkoutMode)
             .setContentIntent(pendingMainActivityIntent)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(
+                if (isWorkoutMode) {
+                    NotificationCompat.PRIORITY_HIGH
+                } else {
+                    NotificationCompat.PRIORITY_LOW
+                }
+            )
             .build()
 
         try {
