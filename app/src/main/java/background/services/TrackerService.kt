@@ -178,7 +178,22 @@ class TrackerService : Service(), SensorEventListener {
     private fun showJumpNotification(){
         val mainActivityIntent = Intent(this, MainActivity::class.java).apply {
             action = MainActivity.ACTION_SERVICE_STOPPED_JUMP
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+
+            if (isWorkoutMode) {
+                putExtra(
+                    MainActivity.EXTRA_JUMP_COUNT,
+                    jumpCount
+                )
+
+                putExtra(
+                    MainActivity.EXTRA_WORKOUT_TIME,
+                    System.currentTimeMillis()
+                )
+            }
+
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
 
         val pendingMainActivityIntent = PendingIntent.getActivity(

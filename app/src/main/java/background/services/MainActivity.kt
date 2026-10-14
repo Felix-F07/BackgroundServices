@@ -6,15 +6,18 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.CalendarContract
+import android.view.View
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-
+import android.content.ActivityNotFoundException
 class MainActivity : AppCompatActivity() {
     private val permissionToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         arrayOf(
@@ -40,10 +43,15 @@ class MainActivity : AppCompatActivity() {
 
     private var workoutPermissionRequest = false
 
+    private lateinit var btnKalender: Button
+    private var completedJumpCount = 0
+    private var completedWorkoutTime = 0L
+
     companion object {
         const val ACTION_SERVICE_STOPPED_JUMP = "background.services.ACTION_SERVICE_STOPPED_JUMP"
         const val ACTION_START_WORKOUT = "background.services.ACTION_START_WORKOUT"
         const val EXTRA_JUMP_COUNT = "background.services.EXTRA_JUMP_COUNT"
+        const val EXTRA_WORKOUT_TIME = "background.services.EXTRA_WORKOUT_TIME"
         const val REQUEST_CODE_PERMISSIONS = 101
     }
 
@@ -105,11 +113,76 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        private fun handleIntent(intent: Intent?) {
-            if (intent?.action == ACTION_SERVICE_STOPPED_JUMP) {
-                txtLacak.text = "Background services sudah berhenti akrena Anda melompat"
-            }
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action != ACTION_SERVICE_STOPPED_JUMP) {
+            return
         }
+
+        val totalJumps = intent.getIntExtra(
+            EXTRA_JUMP_COUNT,
+            -1
+        )
+
+        if (totalJumps >= 0) {
+            completedJumpCount = totalJumps
+            completedWorkoutTime = intent.getLongExtra(
+                EXTRA_WORKOUT_TIME,
+                System.currentTimeMillis()
+            )
+
+            txtLatihan.text = "Latihan selesai!\nJumlah lompatan: $completedJumpCount"
+            btnLatihan.isEnabled = true
+            btnKalender.visibility = View.VISIBLE
+
+        } else {
+            txtLacak.text = "Background services sudah berhenti karena Anda melompat."
+        }
+    }
+
+    private fun addWorkoutToCalendar() {
+        val startTime = if (completedWorkoutTime > 0L) {
+            completedWorkoutTime
+        } else {
+            System.currentTimeMillis()
+        }
+
+        val endTime = startTime + 30 * 60 * 1000L
+        val calendarIntent = Intent(
+            Intent.ACTION_INSERT
+        ).apply {
+            data = CalendarContract.Events.CONTENT_URI
+
+            putExtra(
+                CalendarContract.Events.TITLE,
+                "Latihan Lompat"
+            )
+
+            putExtra(
+                CalendarContract.Events.DESCRIPTION,
+                "Latihan selesai dengan $completedJumpCount lompatan."
+            )
+
+            putExtra(
+                CalendarContract.EXTRA_EVENT_BEGIN_TIME,
+                startTime
+            )
+
+            putExtra(
+                CalendarContract.EXTRA_EVENT_END_TIME,
+                endTime
+            )
+        }
+
+        try {
+            startActivity(calendarIntent)
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(
+                this,
+                "Tidak ada aplikasi kalender.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
 
         override fun onNewIntent(intent: Intent) {
             super.onNewIntent(intent)
@@ -157,6 +230,11 @@ class MainActivity : AppCompatActivity() {
                         REQUEST_CODE_PERMISSIONS
                     )
                 }
+            }
+
+            btnKalender = findViewById(R.id.btnTambahKalender)
+            btnKalender.setOnClickListener {
+                addWorkoutToCalendar()
             }
 
             handleIntent(intent)
